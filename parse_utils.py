@@ -53,19 +53,26 @@ class Parser_worker():
         return kurs  # 1.9750
 
     def del_space(self, string):  # Для удаления спец пробела в ЦЕНЕ - 1 670. Возвращает число в формате float без пробела. На вход - строка с ценой '1 670' or '879'
+        print("Deleting space")
         string = str(string)
-        if ' ' in string:
-            new_string = string.replace(' ', '')
-            string = float(new_string)
+
+        if 'млн' in str(string):  # "1.37 млн" - на вход - еще нужно проверить цену на наличие слова "млн" - такие есть в ресторанах - когда стоимость дана за весь уасток.
+            string = string.split('млн')[0].strip()  # "1.37 млн" - "1.37"
+            string = float(string) * 1000000  # переводим строку в число и умножаем на 1 млн, т.к. стоимость была дана в млн.
             return string
+        elif ' ' in string:
+            new_string = string.replace(' ', '')
+            try:
+                string = float(new_string)
+
+            except:
+                print("No special symbol in price")
+
+            return string
+
         else:
-            if ' млн' in string:  # "1.37 млн" - на вход - еще нужно проверить цену на наличие слова "млн" - такие есть в ресторанах - когда стоимость дана за весь уасток.
-                string = string.split(' млн')[0]  # "1.37 млн" - "1.37"
-                string = float(string) * 1000000  # переводим строку в число и умножаем на 1 млн, т.к. стоимость была дана в млн.
-                return string
-            else:
-                string = float(string)
-                return string
+            string = float(string)
+            return string
 
     def del_coma(self, string):  # Для удаления запятой  в ЦЕНЕ - 5,76 и замене ее на точку. Возвращает строку
         if ',' in string:
@@ -108,6 +115,7 @@ class Parser_worker():
 
     # НОВАЯ ФУНКЦИЯ ПО ЗАПИСИ КООРДИНАТ Х и У
     def get_coords_new(self, soup, project):  # НОВОЕ Для каждого объявления находит координату с Яндекс карты, На вход - объект суп страницы с объявлением и словарь, куда записываются координаты
+        print("try to get coords")
         table = soup.find_all('div', {'id': 'map-center'})  # Координаты записаны под данны тегом
         for i in table:
             # str(i) = <div data-center='{"distance":"1000","position.":{"x":"27.491466","y":"53.892999"},"image":"&lt;i class=\"icomoon-house\"&gt;&lt;\/i&gt;","name":"г. Минск, Мавра ул., 41"}' id="map-center"> </div>
@@ -115,7 +123,7 @@ class Parser_worker():
             # print(coords_str)
             X = float(coords_str.split('x":"')[1].split('",')[0])  # 27.491466
             Y = float(coords_str.split('"y":"')[1].split('"')[0])  # 53.892999
-            # print(X, Y)
+            print(X, Y)
             project['XCoord'] = X
             project['YCoord'] = Y
 
@@ -178,12 +186,14 @@ class Parser_worker():
     def get_price(self, price_from, price_till, project,Exc_field1, Exc_field2, Exc_field3, valuta):  # (Если цена указана за 1 кв.м.) Функция удаляет запятую и пробел в цене если они есть и записывает в project цену переведенную в долларах с округлением до 2 знаков после запятой
         price_from = self.del_coma(price_from)
         price_till = self.del_coma(price_till)
+        print("AFTER DELETING COMA price_from:", price_from, "price_till: ", price_till)
         price_from = self.del_space(price_from)
         price_till = self.del_space(price_till)
+        print("AFTER DELETING SPACE price_from:", price_from, "price_till: ", price_till)
         project[Exc_field1] = round((price_from / self.get_kurs(valuta)), 2)
         project[Exc_field2] = round((price_till / self.get_kurs(valuta)), 2)
         project[Exc_field3] = 'Сайт'
-        print(Exc_field1, Exc_field2, Exc_field3, project[Exc_field1], project[Exc_field2], project[Exc_field3])
+        print(Exc_field1, project[Exc_field1], Exc_field2, project[Exc_field2], Exc_field3,  project[Exc_field3])
 
     def check_price(self, realt_answer, project, Exc_field1, Exc_field2, Exc_field3, valuta):  # realt_answer = 'до 92 750', '355—395' or '356' or '1 876' or '1 355—1 395' or 'до 2 157'(Если цена указана за 1 кв.м.)  Функция проверяет есть ли в цене строки '—', 'до ' или нет. и записывает корректную (если были строки) в долларах
         if '—' in realt_answer:  # Цена записана в таком виде: 114 911 — 120 658 руб, 1 973—2 072 руб/кв.м
@@ -202,23 +212,26 @@ class Parser_worker():
 
     def get_finish_price(self, realt_answer, project, Excel_field1, Excel_field2, Excel_field3, Excel_field4, Excel_field5, Excel_field6, valuta):  # где realt_answer - ответ на реалте, project - словарь, куда записывается итоговая цена,   Excel_field = Realt_Excel_dict[option] - Получаем название поля в Excel, option - название поля на реалте
         # print(realt_answer) - сто пятьсот вариантов
+
         if "руб, " in realt_answer:  # Цена записана в таком виде: 11 740 руб, 118 руб/кв.м
             realt_answer_metr = realt_answer.split('руб, ')[1].split('руб/')[0].strip()  # 118    '355—395' or '356' or '1 876' or '1 355—1 395' or 'до 2 157'
             self.check_price(realt_answer_metr, project, Excel_field4, Excel_field5, Excel_field6, valuta)
             # Еще нужно записать цену за весь участок
             realt_answer_whole_lot = realt_answer.split('руб, ')[0].strip()  # 11 740    '355—395' or '356' or '1 876' or '1 355—1 395' or 'до 2 157'
+            print("realt_answer_whole_lot", realt_answer_whole_lot)
             self.check_price(realt_answer_whole_lot, project, Excel_field1, Excel_field2, Excel_field3, valuta)
         elif 'договор' in realt_answer:  # Цена записана в таком виде: Цена договорная
             project[Excel_field3] = 'Цена договорная'
             project[Excel_field6] = 'Цена договорная'
         else:  # Значит цена указана либо за весь объект либо только за 1 кв.м. Варианты: 118 руб/кв.м, 118 руб/м², 22-33 руб/кв.м, 345 руб
-            if ' руб/' in realt_answer:  # есть цена за 1 кв.м
-                realt_answer = realt_answer.split(' руб/')[0].strip()
+            if 'руб/' in realt_answer:  # есть цена за 1 кв.м
+                realt_answer = realt_answer.split('руб/')[0].strip()
+                print("answer after split and strip", realt_answer)
                 self.check_price(realt_answer, project, Excel_field4, Excel_field5, Excel_field6, valuta)
                 # Если цена указана только за 1 кв. м, то теперь нужно рассчитать цену за весь земельный участок, НО в случае если Sот не равна Sдо и Цена за 1 кв.м от  не равна Цене за 1 кв.м до ТОГДА НЕ РССЧИТЫВАЕМ
                 self.calculate_price_whole_lot(project, Excel_field1, Excel_field2, Excel_field3, Excel_field4, Excel_field5)
             else:  # значит стоимость дана только за весь земельный участок и в строке есть слово "руб"
-                realt_answer = realt_answer.split(' руб')[0].strip()
+                realt_answer = realt_answer.split('руб')[0].strip()
                 self.check_price(realt_answer, project, Excel_field1, Excel_field2, Excel_field3, valuta)
                 # Если цена указана только за весь объект, то теперь нужно рассчитать цену за 1 кв.м
                 self.calculate_price_metr(project, Excel_field1, Excel_field2, Excel_field4, Excel_field5, Excel_field6)
@@ -297,8 +310,8 @@ class Parser_worker():
                     house = house.split(' ')[0]
                 project[Excel_field3] = int(house)
 
-    def parse_object(self, obj_url: object, excel_objects: object, Realt_Excel_fields_dict: object, realt_fields_list: object,
-                     excel_options_dict: object) -> object:
+    def parse_object(self, obj_url, excel_objects, Realt_Excel_fields_dict, realt_fields_list,
+                     excel_options_dict):
         html_obj = self.get_html(obj_url)
         soup = BeautifulSoup(html_obj, "html.parser")
         table = soup.find_all('tr', {'class': 'table-row'})  # Получаем список со всеми необходимыми данными объявления
@@ -385,7 +398,10 @@ class Parser_worker():
                             Excel_field4 = Realt_Excel_fields_dict['Вспомогательные виды']
                             self.get_finish_vid_object(realt_answer, project, Excel_field, Excel_field2, Excel_field3, Excel_field4, excel_options_dict)
 
-                        elif option == "Ориентировочная стоимость эквивалентна": # Необходимым условием является наличине в project['Тип предложения'] т.к. если аренда- то нужно переводить в евро, если продажа, то в доллары
+                        elif option == "Ориентировочная стоимость эквивалентна":
+
+
+                        # Необходимым условием является наличине в project['Тип предложения'] т.к. если аренда- то нужно переводить в евро, если продажа, то в доллары
                             # realt_answer = 1 677 руб/кв.м 1 677 руб/кв.м  Цена сделки определяется по соглашению сторон. Расчеты осуществляются в белорусских рублях в соответствии с законодательством Республики Беларусь.
                             Excel_field1 = Realt_Excel_fields_dict['Цена от']
                             Excel_field2 = Realt_Excel_fields_dict['Цена до']
@@ -466,4 +482,6 @@ class Parser_worker():
             else:
                 new_page_projects_for_excel.append(project)
             id_object_name_at_page.append(id_object_name)
+        print("All objects on page: ", page_projects_in_excel, new_page_projects_for_excel, id_object_name_at_page)
         return page_projects_in_excel, new_page_projects_for_excel, id_object_name_at_page
+
