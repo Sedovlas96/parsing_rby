@@ -19,17 +19,19 @@ class Runner(object):
     # Бизнес-центры
     # baseurls = ['https://realt.by/newoffices/', 'https://realt.by/malls/']
 
-    # Склады
+    # Складыx
     # baseurls = ['https://realt.by/sale/warehouses/', 'https://realt.by/rent/warehouses/']
 
     #всё
+    baseurls_new = ['https://realt.by/sale/offices/']
+
     baseurls = ['https://realt.by/sale/warehouses/', 'https://realt.by/rent/warehouses/', 'https://realt.by/sale/offices/', 'https://realt.by/rent/offices/', 'https://realt.by/sale/shops/',
                 'https://realt.by/rent/shops/', 'https://realt.by/sale/restorant-cafe', 'https://realt.by/rent/restorant-cafe','https://realt.by/newoffices/', 'https://realt.by/malls/']
 
     realt_Excels_fields_json = 'Offices_Realt_Excel'  # файл .json с соответствиями м/д названиями полей на realt.by и excel
     realt_Excels_fields_Options_json = 'Offices_Realt_Fields_Options'  # файл .json с соответствиями м/д вариантами ответов на реалте и ответами, которые мы хотим записывать в ексель
 
-    excel_path = "Форма_04_Предложения_продажи_и_аренды.xlsx"  # файл excel куда парсить
+    excel_path = "test_offices_10pages.xlsx"  # файл excel куда парсить
     excel_sheet = "Предложения"  # лист файла excel куда парсить
 
     excel_headers_row = 3  # номер строки с заголовками в ексель
@@ -49,7 +51,7 @@ class Runner(object):
     # till_page = 2  # При повторном парсинге, когда сразу парсится всё (много базовых урлов) данная переменная определяется кодом и данную строку необходимо закомментировать
 
 
-    def __init__(self) -> object:
+    def __init__(self):
         # При инициализации класса
 
 
@@ -76,10 +78,11 @@ class Runner(object):
     def parse_page(self, page_url, excel_objects):
         page_projects_in_excel, new_page_projects_for_excel, id_object_name_at_page = self.parser_worker.get_page_projects(page_url, excel_objects, self.Realt_Excel_fields_dict, self.realt_fields_list, self.excel_options_dict)  # Получаем со страницы  списки объектов, которые есть в екселе,  те которые надо записать и список номеров объявлений со страницы (они нужны для дальнейшего определения объявлений которых уже нет на сайте и для которых надо рассчитать экспозицию)
         print('new_page_projects_for_excel: ', new_page_projects_for_excel)
-        self.excel_worker.add_projects_into_existing_excel(new_page_projects_for_excel)  # Записываем объекты, которых нет в екселе в сущ ексель
+        if new_page_projects_for_excel:
+            self.excel_worker.add_projects_into_existing_excel(new_page_projects_for_excel)  # Записываем объекты, которых нет в екселе в сущ ексель
         return page_projects_in_excel, id_object_name_at_page  # Возвращаем те объекты со страницы, которые есть в ексель, чтобы заменить в ексель для них дату парсинга на сегодняшнюю и список номеров объявлений, чтобы выявить те объявления которые пропали и для которых надо будет рассчитать экспозицию
 
-
+    # Fixed version
     def parse_pages(self):
         excel_objects = self.excel_worker.get_present_object_list()  # получаем словарь {(1206333, '15.12.2017'): 4, (1035344, '15.12.2017'): 5, ...} - все объявления, которые уже записаны в екселе (номер обьъявления, дата обновления и номер строки)
         with open("excel_objects.txt", "w") as myfile:
@@ -87,12 +90,13 @@ class Runner(object):
         print("In Excel already exist: ", excel_objects)
         all_projects_in_excel = []  # переменная, в которую будут записываться (номер строки в ексель, номер объявления, дата обновления) с сайта, которые уже есть в екселе, для них в дальнейшем нужно будет заменить дату парсинга на сегодняшнюю
         id_object_name_at_pages = []  # переменная, в которую будут записываться номера объявлений с сайта, в дальнейшем будут находится номера объявлений в екселе, которых уже нет на сайте (завершенные) и для них будет рассчитана экспозиция
-        for baseurl in self.baseurls: # парсинг осуществляется для всех базовых урлов в списке (по типу недвижимости)
-            till_page = self.parser_worker.get_till_page(baseurl)  # находим последнюю страницу в базовом урле
+        for baseurl in self.baseurls_new:  # парсинг осуществляется для всех базовых урлов в списке (по типу недвижимости)
+            till_page = 10
+            # till_page = self.parser_worker.get_till_page(baseurl)  # находим последнюю страницу в базовом урле
             print('The last page in ', baseurl, " is", till_page)
             page_projects_in_excel = []  # переменная, в которую будут записываться (номер строки в ексель, номер объявления, дата обновления) со СТРАНИЦЫ сайта, которые уже есть в екселе, для них в дальнейшем нужно будет заменить дату парсинга на сегодняшнюю
             id_object_name_at_page = []  # переменная, в которую будут записываться номера объявлений со СТРАНИЦЫ сайта
-            for page_num in range(self.from_page, till_page+1): # проходимся по каждой странице
+            for page_num in range(self.from_page, till_page + 1):  # проходимся по каждой странице
                 if page_num == 1:  # Парсим первую страницу (базовый урл)
                     print("\nParsing page №: ", page_num)
                     page_projects_in_excel, id_object_name_at_page = self.parse_page(baseurl, excel_objects)
@@ -100,11 +104,14 @@ class Runner(object):
                     print("\nParsing page №: ", page_num)
                     page_url = "{}?page={}".format(baseurl, page_num - 1)
                     try:
-                        page_projects_in_excel, id_object_name_at_page = self.parse_page(page_url, excel_objects)  # Парсим каждую страницу (в ней записываем новые объекты в ексель), а возвращаем объявления, которые уже есть в екселе и номера объхявлений со старницы
+                        page_projects_in_excel, id_object_name_at_page = self.parse_page(page_url,
+                                                                                         excel_objects)  # Парсим каждую страницу (в ней записываем новые объекты в ексель), а возвращаем объявления, которые уже есть в екселе и номера объхявлений со старницы
                     except:
                         print('ERROR')
                         with open("mistakes.txt", "a") as myfile:
-                            myfile.write('ERROR in parse page {} {}\n'.format(Exception.__class__.__name__, TypeError, page_num))
+                            myfile.write(
+                                'ERROR in parse page {} {}\n'.format(Exception.__class__.__name__, TypeError,
+                                                                     page_num))
                 all_projects_in_excel.extend(page_projects_in_excel)
                 id_object_name_at_pages.extend(id_object_name_at_page)
                 waiting_time = random.randint(1, 10)
@@ -116,10 +123,10 @@ class Runner(object):
                     myfile.write(str(id_object_name_at_pages))
 
 
-        #  Для последующих парсингов (не для первого)
-        todays_date = self.parser_worker.get_today_date()  # Получаем сегодняшнюю дату парсинга
-
-        # Для завершенных объявлений: СЕЙЧАС НЕ ИСПОЛЬЗУЕТСЯ
+        # #  Для последующих парсингов (не для первого)
+        # todays_date = self.parser_worker.get_today_date()  # Получаем сегодняшнюю дату парсинга
+        #
+        # # Для завершенных объявлений: СЕЙЧАС НЕ ИСПОЛЬЗУЕТСЯ
         # print("\nCalculating Expozition and update Parsing date for closed objects ... ")
         # self.excel_worker.write_expozition(excel_objects, id_object_name_at_pages, self.expozition_col_name, todays_date)  # для объявлений номеров из ексель которых уже нет на сайте записывается экспозиция и заменяется дата парсинга на сегодняшнюю
 
